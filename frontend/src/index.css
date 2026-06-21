@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: theme('colors.white');
+    --bg-secondary: theme('colors.surface.secondary');
+    --text-primary: theme('colors.slate.900');
+    --text-secondary: theme('colors.slate.600');
+    --text-tertiary: theme('colors.slate.400');
+    --border: theme('colors.surface.border');
+  }
+
+  .dark {
+    --bg-primary: theme('colors.dark.surface');
+    --bg-secondary: theme('colors.dark.secondary');
+    --text-primary: theme('colors.slate.50');
+    --text-secondary: theme('colors.slate.400');
+    --text-tertiary: theme('colors.slate.600');
+    --border: theme('colors.dark.border');
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-surface-secondary dark:bg-dark-surface text-slate-900 dark:text-slate-50 font-sans;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    @apply bg-brand-100 text-brand-900;
+  }
+}
+
+@layer components {
+  .skeleton {
+    @apply relative overflow-hidden bg-slate-100 dark:bg-dark-tertiary rounded;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .dark .skeleton::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.06) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  .glass {
+    @apply bg-white/80 dark:bg-dark-secondary/80 backdrop-blur-xl;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.slate.300') transparent;
+  }
+
+  .dark .scrollbar-thin {
+    scrollbar-color: theme('colors.dark.border') transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-dark-border rounded-full;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-surface;
+  }
+}

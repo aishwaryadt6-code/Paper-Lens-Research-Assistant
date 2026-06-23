@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FolderOpen, FileText, Users, Upload, UserPlus, ArrowLeft, CheckCircle, Database } from 'lucide-react';
+import { FolderOpen, FileText, Users, Upload, UserPlus, ArrowLeft, CheckCircle, Database, Network } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -140,6 +140,15 @@ export default function WorkspaceViewPage() {
                 Invite Member
               </Button>
             )}
+            <Button 
+              variant="secondary"
+              size="sm" 
+              onClick={() => navigate(`/workspaces/${id}/graph`)}
+              className="font-bold text-xs h-9 rounded-xl border border-surface-border text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+            >
+              <Network className="h-3.5 w-3.5 mr-1 text-brand-500" />
+              Knowledge Graph
+            </Button>
             <Button 
               size="sm" 
               onClick={handleUpload}

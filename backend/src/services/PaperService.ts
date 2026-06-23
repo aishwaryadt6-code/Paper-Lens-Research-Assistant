@@ -10,6 +10,7 @@ import { IPaper } from '../models/Paper';
 import { PaginatedResult } from '../types';
 import { Response } from 'express';
 import { extractionService } from './ExtractionService';
+import { autoAIPipelineService } from './AutoAIPipelineService';
 
 export class PaperService {
   async getPaperById(paperId: string, userId: string): Promise<IPaper> {
@@ -70,6 +71,7 @@ export class PaperService {
         message: `"${title}" has been uploaded successfully.`,
         metadata: { paperId: paper._id.toString(), workspaceId },
       }),
+      autoAIPipelineService.initializeJob(paper._id.toString(), workspaceId),
     ]);
 
     // Trigger metadata extraction asynchronously in background
@@ -144,6 +146,7 @@ export class PaperService {
     await Promise.all([
       workspaceRepository.incrementPaperCount(paper.workspace.toString(), -1),
       workspaceRepository.updateStorageUsed(paper.workspace.toString(), -paper.fileSize),
+      autoAIPipelineService.deleteJob(paperId),
     ]);
   }
 

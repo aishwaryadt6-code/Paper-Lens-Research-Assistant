@@ -16,6 +16,8 @@ import profileRoutes from './routes/profile';
 import notificationRoutes from './routes/notifications';
 import searchRoutes from './routes/search';
 import adminRoutes from './routes/admin';
+import graphRoutes from './modules/ai-knowledge-graph/graph.routes';
+
 
 const app = express();
 
@@ -69,6 +71,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/ai-knowledge-graph', graphRoutes);
+
 
 app.use(notFoundHandler);
 app.use(errorHandler);

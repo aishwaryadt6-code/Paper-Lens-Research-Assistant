@@ -10,6 +10,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import WorkspacesPage from './pages/WorkspacesPage';
 import WorkspaceViewPage from './pages/WorkspaceViewPage';
+import WorkspaceGraphView from './pages/WorkspaceGraphView';
 import PapersPage from './pages/PapersPage';
 import PaperDetailPage from './pages/PaperDetailPage';
 import UploadsPage from './pages/UploadsPage';
@@ -45,12 +46,14 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/workspaces" element={<WorkspacesPage />} />
               <Route path="/workspaces/:id" element={<WorkspaceViewPage />} />
+              <Route path="/workspaces/:id/graph" element={<WorkspaceGraphView />} />
               <Route path="/papers" element={<PapersPage />} />
               <Route path="/insights" element={<InsightsPage />} />
               <Route path="/papers/:id" element={<PaperDetailPage />} />
               <Route path="/uploads" element={<UploadsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/graph" element={<WorkspaceGraphView />} />
 
               {/* Admin-only routes */}
               <Route element={<AdminRoute />}>

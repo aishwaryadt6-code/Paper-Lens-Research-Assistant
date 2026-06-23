@@ -4,6 +4,9 @@ import { parseAcademicPaper } from '../utils/pdfParser';
 import { paperRepository } from '../repositories/PaperRepository';
 import { getGridFSBucket } from '../config/gridfs';
 import { notificationRepository } from '../repositories/NotificationRepository';
+import { relationshipService } from '../modules/ai-knowledge-graph/relationship.service';
+import { autoAIPipelineService } from './AutoAIPipelineService';
+
 
 const EXTRACTION_VERSION = 2;
 
@@ -62,6 +65,12 @@ export class ExtractionService {
         message: `Extracted sections and bibliography successfully for "${paper.title}".`,
         metadata: { paperId: paper._id.toString(), workspaceId: paper.workspace.toString() },
       });
+
+      // 7. Trigger the AI intelligence pipeline in the background
+      autoAIPipelineService.runPipelineForPaper(paperId, paper.workspace.toString()).catch((err) => {
+        console.error(`[ExtractionService] Failed to run AI pipeline:`, err);
+      });
+
 
     } catch (err: any) {
       console.error(`[ExtractionService] Extraction failed for paper ${paperId}:`, err);

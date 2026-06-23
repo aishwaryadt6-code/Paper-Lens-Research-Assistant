@@ -10,9 +10,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../components/ui/Button';
 import { Badge, Skeleton } from '../components/ui/Primitives';
 import { EmptyState } from '../components/ui/EmptyState';
-import { useDeletePaper } from '../hooks/usePapers';
+import { useDeletePaper, usePapers } from '../hooks/usePapers';
 import { toast } from '../components/ui/Toast';
 import { cn, formatBytes, formatRelativeTime, extractApiError } from '../components/ui/utils';
+import SimilarityPanel from '../modules/ai-insights/SimilarityPanel';
+import ContradictionPanel from '../modules/ai-insights/ContradictionPanel';
+import GraphPanel from '../modules/ai-insights/GraphPanel';
 import apiClient from '../services/apiClient';
 import { ApiResponse, Paper, PaperStatus, User as IUser, Workspace } from '../types';
 
@@ -35,6 +38,24 @@ function usePaper(id: string) {
   });
 }
 
+function usePaperAIStatus(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['papers', 'ai-status', id],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<any>>(`/ai-knowledge-graph/paper/${id}/ai-status`);
+      return res.data.data!;
+    },
+    enabled: !!id && enabled,
+    refetchInterval: (data) => {
+      const status = (data as any)?.state?.data?.jobStatus || (data as any)?.jobStatus;
+      if (status === 'pending' || status === 'processing') {
+        return 3000;
+      }
+      return false;
+    },
+  });
+}
+
 export default function PaperDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -42,6 +63,14 @@ export default function PaperDetailPage() {
   const queryTab = searchParams.get('tab') as any;
   
   const { data: paper, isLoading, error } = usePaper(id!);
+  const workspaceId = paper?.workspace
+    ? typeof paper.workspace === 'string'
+      ? paper.workspace
+      : (paper.workspace as any)._id
+    : '';
+  const { data: workspacePapersRes } = usePapers(workspaceId, 1, 100);
+  const workspacePapers = workspacePapersRes?.items || [];
+
   const deletePaper = useDeletePaper();
   const [pdfError, setPdfError] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -49,11 +78,19 @@ export default function PaperDetailPage() {
   const [activeMetadataTab, setActiveMetadataTab] = useState<'abstract' | 'references' | 'insights'>(
     ['abstract', 'references', 'insights'].includes(queryTab) ? queryTab : 'abstract'
   );
+  const [activeInsightsSubTab, setActiveInsightsSubTab] = useState<'overview' | 'similarity' | 'contradiction' | 'graph'>('overview');
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [activeAccordionIdx, setActiveAccordionIdx] = useState<number | null>(null);
   const [loadingStepIdx, setLoadingStepIdx] = useState(0);
   const loadingSteps = ["Analyzing paper...", "Generating insights...", "Structuring results..."];
   const queryClient = useQueryClient();
+  const { data: aiStatus } = usePaperAIStatus(id!, activeMetadataTab === 'insights');
+
+  useEffect(() => {
+    if (aiStatus?.jobStatus === 'completed') {
+      queryClient.invalidateQueries({ queryKey: ['papers', 'detail', id] });
+    }
+  }, [aiStatus?.jobStatus, id, queryClient]);
 
   const retryExtraction = useMutation({
     mutationFn: async () => {
@@ -550,119 +587,178 @@ export default function PaperDetailPage() {
                     {/* Display State */}
                     {paper.aiInsights?.executiveSummary && !generateInsights.isPending && !generationError && (
                       <div className="space-y-6 pt-2">
-                        {/* Section 1: Executive Summary - Chat-Style UI */}
-                        <div className="bg-slate-50 dark:bg-dark-tertiary/40 rounded-2xl p-5 border border-surface-border dark:border-white/5 shadow-soft-sm relative overflow-hidden flex flex-col gap-4">
-                          <div className="flex items-center justify-between border-b border-surface-border dark:border-white/5 pb-2.5">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                              <BrainCircuit className="h-4 w-4 text-brand-500" />
-                              AI Analysis Stream
-                            </h3>
-                            <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                              Synthesis Complete
-                            </span>
-                          </div>
+                        {/* Sub Tab Bar inside AI Insights */}
+                        <div className="flex border-b border-slate-100 dark:border-slate-800 gap-4 mb-2 overflow-x-auto scrollbar-none">
+                          {[
+                            { id: 'overview', label: 'Overview' },
+                            { id: 'similarity', label: 'Similarity' },
+                            { id: 'contradiction', label: 'Contradictions' },
+                            { id: 'graph', label: 'Knowledge Graph' },
+                          ].map((subTab) => (
+                            <button
+                              key={subTab.id}
+                              onClick={() => setActiveInsightsSubTab(subTab.id as any)}
+                              className={cn(
+                                'pb-2 text-xs font-bold transition-all relative border-b-2 border-transparent -mb-[1px]',
+                                activeInsightsSubTab === subTab.id
+                                  ? 'border-brand-500 text-brand-600 dark:text-brand-400 font-semibold'
+                                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                              )}
+                            >
+                              {subTab.label}
+                            </button>
+                          ))}
+                        </div>
 
-                          <div className="space-y-4">
-                            {/* User Question Prompt Bubble */}
-                            <div className="flex justify-end">
-                              <div className="bg-brand-500/10 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300 text-xs px-3.5 py-2.5 rounded-2xl rounded-tr-sm max-w-sm font-medium">
-                                Summarize the core methodology and contributions of this research paper.
+                        {/* Background Job Banners */}
+                        {aiStatus && (aiStatus.jobStatus === 'pending' || aiStatus.jobStatus === 'processing') && (
+                          <div className="flex items-center gap-2 text-2xs font-semibold text-brand-650 dark:text-brand-400 bg-brand-500/5 border border-brand-500/10 px-3.5 py-2 rounded-xl animate-pulse mb-3 select-text">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-500" />
+                            AI Background Pipeline Processing (Workspace similarity, contradictions, and knowledge graphs)...
+                          </div>
+                        )}
+                        {aiStatus && (aiStatus.jobStatus === 'failed' || aiStatus.jobStatus === 'delayed') && (
+                          <div className="flex items-center gap-2 text-2xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/5 border border-amber-500/15 px-3.5 py-2 rounded-xl mb-3 animate-pulse select-text">
+                            <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                            AI Processing Delayed (Local ML Service Offline). Retrying automatically.
+                          </div>
+                        )}
+
+                        {activeInsightsSubTab === 'overview' && (
+                          <div className="space-y-6 animate-fade-in">
+                            {/* Section 1: Executive Summary - Chat-Style UI */}
+                            <div className="bg-slate-50 dark:bg-dark-tertiary/40 rounded-2xl p-5 border border-surface-border dark:border-white/5 shadow-soft-sm relative overflow-hidden flex flex-col gap-4">
+                              <div className="flex items-center justify-between border-b border-surface-border dark:border-white/5 pb-2.5">
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                  <BrainCircuit className="h-4 w-4 text-brand-500" />
+                                  AI Analysis Stream
+                                </h3>
+                                <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                  Synthesis Complete
+                                </span>
+                              </div>
+
+                              <div className="space-y-4">
+                                {/* User Question Prompt Bubble */}
+                                <div className="flex justify-end">
+                                  <div className="bg-brand-500/10 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300 text-xs px-3.5 py-2.5 rounded-2xl rounded-tr-sm max-w-sm font-medium">
+                                    Summarize the core methodology and contributions of this research paper.
+                                  </div>
+                                </div>
+
+                                {/* AI Assistant Answer Bubble */}
+                                <div className="flex items-start gap-3">
+                                  <div className="h-7 w-7 rounded-lg bg-gradient-to-r from-brand-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md shadow-brand-500/10">
+                                    <Sparkles className="h-3.5 w-3.5 text-white" />
+                                  </div>
+                                  <div className="flex-1 bg-white dark:bg-dark-secondary text-xs text-slate-700 dark:text-slate-350 p-4 rounded-2xl rounded-tl-sm border border-surface-border dark:border-white/5 shadow-soft space-y-3">
+                                    {paper.aiInsights.executiveSummary.split('\n\n').filter(p => p.trim().length > 0).map((para, idx) => (
+                                      <p key={idx} className="leading-relaxed">
+                                        {para.trim()}
+                                      </p>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
 
-                            {/* AI Assistant Answer Bubble */}
-                            <div className="flex items-start gap-3">
-                              <div className="h-7 w-7 rounded-lg bg-gradient-to-r from-brand-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md shadow-brand-500/10">
-                                <Sparkles className="h-3.5 w-3.5 text-white" />
+                            {/* Section 2: Key Findings - Chips/Tags UI */}
+                            <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-surface-border dark:border-white/5 shadow-soft-sm">
+                              <div className="flex items-center gap-1.5 mb-4">
+                                <div className="h-6 w-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                </div>
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                  Core Findings & Key Takeaways
+                                </h3>
                               </div>
-                              <div className="flex-1 bg-white dark:bg-dark-secondary text-xs text-slate-700 dark:text-slate-350 p-4 rounded-2xl rounded-tl-sm border border-surface-border dark:border-white/5 shadow-soft space-y-3">
-                                {paper.aiInsights.executiveSummary.split('\n\n').filter(p => p.trim().length > 0).map((para, idx) => (
-                                  <p key={idx} className="leading-relaxed">
-                                    {para.trim()}
-                                  </p>
+                              <div className="flex flex-wrap gap-2">
+                                {paper.aiInsights.keyFindings.map((finding, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/10 hover:border-emerald-500/25 hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-200 cursor-default shadow-soft-sm"
+                                  >
+                                    {finding}
+                                  </div>
                                 ))}
                               </div>
                             </div>
-                          </div>
-                        </div>
 
-                        {/* Section 2: Key Findings - Chips/Tags UI */}
-                        <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-surface-border dark:border-white/5 shadow-soft-sm">
-                          <div className="flex items-center gap-1.5 mb-4">
-                            <div className="h-6 w-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                              <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                            </div>
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                              Core Findings & Key Takeaways
-                            </h3>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {paper.aiInsights.keyFindings.map((finding, idx) => (
-                              <div 
-                                key={idx} 
-                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/10 hover:border-emerald-500/25 hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-200 cursor-default shadow-soft-sm"
-                              >
-                                {finding}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Section 3: Viva Questions - Accordion UI */}
-                        <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-surface-border dark:border-white/5 shadow-soft-sm">
-                          <div className="flex items-center gap-1.5 mb-4">
-                            <div className="h-6 w-6 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                              <Clock className="h-3.5 w-3.5 text-amber-500" />
-                            </div>
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                              Viva practice Prep Questions
-                            </h3>
-                          </div>
-                          <div className="space-y-2.5">
-                            {paper.aiInsights.vivaQuestions.map((q, idx) => {
-                              const isOpen = activeAccordionIdx === idx;
-                              return (
-                                <div 
-                                  key={idx} 
-                                  className="rounded-xl border border-surface-border dark:border-white/5 bg-slate-50/50 dark:bg-white/5 overflow-hidden transition-all duration-300 shadow-soft-sm hover:border-brand-500/15"
-                                >
-                                  <button
-                                    onClick={() => setActiveAccordionIdx(isOpen ? null : idx)}
-                                    className="w-full flex items-center justify-between p-3.5 text-left text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors gap-4"
-                                  >
-                                    <span className="flex gap-2">
-                                      <span className="text-amber-500 font-bold">Q{idx + 1}.</span>
-                                      <span>{q}</span>
-                                    </span>
-                                    <motion.span
-                                      animate={{ rotate: isOpen ? 180 : 0 }}
-                                      transition={{ duration: 0.2 }}
-                                      className="text-slate-400 shrink-0"
-                                    >
-                                      ▼
-                                    </motion.span>
-                                  </button>
-                                  <AnimatePresence>
-                                    {isOpen && (
-                                      <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.25, ease: 'easeInOut' }}
-                                        className="border-t border-surface-border dark:border-white/5 bg-white dark:bg-dark-secondary/30 p-4"
-                                      >
-                                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
-                                          💡 **Viva Preparation Guide**: Explain how this specific finding or methodology is established by the author's experiments. Highlight variables, limitations, and how it addresses the research problem compared to existing solutions.
-                                        </p>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
+                            {/* Section 3: Viva Questions - Accordion UI */}
+                            <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-surface-border dark:border-white/5 shadow-soft-sm">
+                              <div className="flex items-center gap-1.5 mb-4">
+                                <div className="h-6 w-6 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                  <Clock className="h-3.5 w-3.5 text-amber-500" />
                                 </div>
-                              );
-                            })}
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                  Viva practice Prep Questions
+                                </h3>
+                              </div>
+                              <div className="space-y-2.5">
+                                {paper.aiInsights.vivaQuestions.map((q, idx) => {
+                                  const isOpen = activeAccordionIdx === idx;
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      className="rounded-xl border border-surface-border dark:border-white/5 bg-slate-50/50 dark:bg-white/5 overflow-hidden transition-all duration-300 shadow-soft-sm hover:border-brand-500/15"
+                                    >
+                                      <button
+                                        onClick={() => setActiveAccordionIdx(isOpen ? null : idx)}
+                                        className="w-full flex items-center justify-between p-3.5 text-left text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors gap-4"
+                                      >
+                                        <span className="flex gap-2">
+                                          <span className="text-amber-500 font-bold">Q{idx + 1}.</span>
+                                          <span>{q}</span>
+                                        </span>
+                                        <motion.span
+                                          animate={{ rotate: isOpen ? 180 : 0 }}
+                                          transition={{ duration: 0.2 }}
+                                          className="text-slate-400 shrink-0"
+                                        >
+                                          ▼
+                                        </motion.span>
+                                      </button>
+                                      <AnimatePresence>
+                                        {isOpen && (
+                                          <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.25, ease: 'easeInOut' }}
+                                            className="border-t border-surface-border dark:border-white/5 bg-white dark:bg-dark-secondary/30 p-4"
+                                          >
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
+                                              💡 **Viva Preparation Guide**: Explain how this specific finding or methodology is established by the author's experiments. Highlight variables, limitations, and how it addresses the research problem compared to existing solutions.
+                                            </p>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {activeInsightsSubTab === 'similarity' && (
+                          <div className="animate-fade-in">
+                            <SimilarityPanel currentPaper={paper} allPapers={workspacePapers} aiStatus={aiStatus} />
+                          </div>
+                        )}
+
+                        {activeInsightsSubTab === 'contradiction' && (
+                          <div className="animate-fade-in">
+                            <ContradictionPanel currentPaper={paper} allPapers={workspacePapers} aiStatus={aiStatus} />
+                          </div>
+                        )}
+
+                        {activeInsightsSubTab === 'graph' && (
+                          <div className="animate-fade-in">
+                            <GraphPanel currentPaper={paper} allPapers={workspacePapers} aiStatus={aiStatus} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

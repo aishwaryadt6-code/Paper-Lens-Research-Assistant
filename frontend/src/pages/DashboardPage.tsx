@@ -7,11 +7,12 @@ import { useRecentPapers } from '../hooks/usePapers';
 import { useUIStore } from '../stores/uiStore';
 import { WorkspaceCard } from '../components/workspace/WorkspaceCard';
 import { PaperCard } from '../components/papers/PaperCard';
-import { Skeleton } from '../components/ui/Primitives';
+import { Skeleton, Badge } from '../components/ui/Primitives';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { CreateWorkspaceModal } from '../components/workspace/CreateWorkspaceModal';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { cn } from '../components/ui/utils';
 
 const fadeUp = {
   initial: { opacity: 0, y: 12 },
@@ -25,6 +26,18 @@ export default function DashboardPage() {
   const { data: recentPapers, isLoading: papersLoading } = useRecentPapers();
   const { setUploadModalOpen } = useUIStore();
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [mlStatus, setMlStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/health')
+      .then((res) => {
+        if (res.ok) setMlStatus('online');
+        else setMlStatus('offline');
+      })
+      .catch(() => {
+        setMlStatus('offline');
+      });
+  }, []);
 
   const totalPapers = workspaces?.reduce((s, w) => s + w.statistics.paperCount, 0) ?? 0;
   const activeWorkspacesCount = workspaces?.filter(w => w.isActive).length ?? 0;
@@ -119,6 +132,51 @@ export default function DashboardPage() {
             </div>
             <p className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight leading-none">{value}</p>
           </motion.div>
+        ))}
+      </div>
+
+      {/* AI Engine Status Widgets */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          {
+            label: 'AI Similarity Status',
+            status: mlStatus === 'online' ? 'Active' : mlStatus === 'checking' ? 'Checking...' : 'Offline',
+            color: mlStatus === 'online' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10',
+            desc: mlStatus === 'online' ? 'Semantic comparisons ready' : 'Local service unreachable',
+          },
+          {
+            label: 'Contradiction Detection Status',
+            status: mlStatus === 'online' ? 'Active' : mlStatus === 'checking' ? 'Checking...' : 'Offline',
+            color: mlStatus === 'online' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10',
+            desc: mlStatus === 'online' ? 'Conflict checks active' : 'Local service unreachable',
+          },
+          {
+            label: 'Knowledge Graph Ready Status',
+            status: mlStatus === 'online' ? 'Ready' : mlStatus === 'checking' ? 'Checking...' : 'Offline',
+            color: mlStatus === 'online' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10',
+            desc: mlStatus === 'online' ? 'Workspace graphs enabled' : 'Local service unreachable',
+          }
+        ].map((item) => (
+          <div
+            key={item.label}
+            className={cn(
+              "rounded-2xl border p-4.5 transition-all shadow-soft flex items-center justify-between",
+              "bg-white dark:bg-white/5",
+              mlStatus === 'online' ? "border-emerald-500/10" : "border-amber-500/10"
+            )}
+          >
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {item.label}
+              </span>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                {item.desc}
+              </p>
+            </div>
+            <Badge className={cn("text-[9px] font-bold px-2 py-0.5 border border-transparent rounded-lg shrink-0", item.color)}>
+              {item.status}
+            </Badge>
+          </div>
         ))}
       </div>
 

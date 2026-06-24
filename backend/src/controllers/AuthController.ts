@@ -40,7 +40,7 @@ export class AuthController {
     if (req.user && refreshToken) {
       await authService.logout(req.user.userId, refreshToken);
     }
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', cookieOptions());
     sendSuccess(res, null, 'Logged out successfully');
   });
 
@@ -51,10 +51,13 @@ export class AuthController {
 }
 
 function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict' as const,
+    secure: isProd,
+    sameSite: isProd ? 'none' as const : 'lax' as const,
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
 }

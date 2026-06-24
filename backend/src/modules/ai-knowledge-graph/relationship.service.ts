@@ -126,9 +126,21 @@ class RelationshipService {
         }
 
         // Build a readable explanation
-        const kw1 = new Set(p1.extractedMetadata?.keywords?.toLowerCase().split(',') || []);
-        const kw2 = new Set(p2.extractedMetadata?.keywords?.toLowerCase().split(',') || []);
-        const overlap = Array.from(kw1).filter(k => kw2.has(k) && k.trim());
+        const kw1 = new Set<string>(
+          (p1.extractedMetadata?.keywords || '')
+            .toString()
+            .toLowerCase()
+            .split(',')
+            .map((kw: string) => kw.trim())
+        );
+        const kw2 = new Set<string>(
+          (p2.extractedMetadata?.keywords || '')
+            .toString()
+            .toLowerCase()
+            .split(',')
+            .map((kw: string) => kw.trim())
+        );
+        const overlap = Array.from(kw1).filter((k) => kw2.has(k) && k.length > 0);
 
         if (relationType === 'contradiction') {
           reasoningSummary = `Potential contradiction detected (score: ${contradictionScore.toFixed(2)}). `;

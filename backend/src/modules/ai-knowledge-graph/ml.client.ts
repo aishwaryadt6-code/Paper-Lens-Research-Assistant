@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger';
-
+import { config } from '../../config/env';
 export interface MLEmbeddingRequest {
   text: string;
 }
@@ -65,7 +65,7 @@ export interface MLGraphResponse {
 }
 
 class MLClient {
-  private baseUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+  private baseUrl = config.mlServiceUrl;
   private defaultTimeoutMs = 15000; // 15 seconds for heavy model loadings
 
   private async post<T>(path: string, body: any, fallbackValue: T): Promise<T> {

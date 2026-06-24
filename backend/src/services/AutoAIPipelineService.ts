@@ -3,8 +3,9 @@ import { Paper } from '../models/Paper';
 import { PaperAIResult } from '../models/PaperAIResult';
 import { PaperRelationship } from '../modules/ai-knowledge-graph/relationship.model';
 import { logger } from '../utils/logger';
+import { config } from '../config/env';
 
-const ML_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const ML_URL = config.mlServiceUrl;
 const TIMEOUT_MS = 15000; // 15 seconds
 
 export class AutoAIPipelineService {

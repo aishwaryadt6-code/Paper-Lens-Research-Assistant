@@ -31,4 +31,5 @@ export const config = {
     maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '50', 10),
     bucketName: process.env.GRIDFS_BUCKET_NAME || 'papers',
   },
+  mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
 } as const;
